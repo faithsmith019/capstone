@@ -1,5 +1,5 @@
 import streamlit as st
 
-def render():
+def render_worker():
     st.title("Worker View")
     st.write("Worker view content goes here.")
