@@ -2,6 +2,7 @@ import streamlit as st
 import pickle
 from pathlib import Path
 import streamlit_authenticator as stauth
+import Data.information as data
 
 st.set_page_config(
     page_title="Login View",
@@ -54,13 +55,19 @@ def save_credentials(credentials):
 # Load initial credentials
 credentials = load_credentials()
 
-# Initialize authenticator
-authenticator = stauth.Authenticate(
-    credentials,
-    "maintenance_app",
-    "abcdef",
-    cookie_expiry_days=30,
-)
+# Initialize authenticator only once per user session to prevent
+# duplicate Streamlit element keys (CookieManager uses a fixed
+# 'init' key internally).  The app reruns on each interaction, so
+# instantiating this object on every run caused the Streamlit
+#DuplicateElementKey error.
+if 'authenticator' not in st.session_state:
+    st.session_state['authenticator'] = stauth.Authenticate(
+        credentials,
+        "maintenance_app",
+        "abcdef",
+        cookie_expiry_days=30,
+    )
+authenticator = st.session_state['authenticator']
 
 
 # Show login UI only when not authenticated. Registration is moved to supervisor view.
@@ -134,7 +141,7 @@ if not page and authentication_status:
     # default to role home and persist it so no sidebar click required
     page = role
     st.session_state['page'] = page
-
+data.init_db()  # ensure DB is initialized before any view tries to use it
 if page == 'requestor':
     from views.requestorview import render_requestor
     render_requestor()

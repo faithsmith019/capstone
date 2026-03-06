@@ -12,16 +12,29 @@ def mainteanceForm():
             st.write("Anything actively leaking, all toilets' broken, A/C or heater not working during extreme temps... please call your RA on call number.")
             st.write("If you are unsure if your issue is an emergency please calll the RA number and they can help you determine that.")
             st.write(" UC RA 1(316)295-5232 \n GRH RA 1(316)295-5231")
-            st.text_input("Full Name: ")
-            st.text_input("Phone Number: ")
-            st.date_input("Today's date: ")
-            st.text_input("Building: ")
-            st.text_input("Apartment Number: ")
-            st.text_input("Specific location of issue within apartment (ie bathroom, kitchen, Bedroom A, etc): ")
-            st.text_area("Description of repair needed: ")
-            st.file_uploader("Upload a photo of the issue (if applicable): ")
+            st.text_input("Full Name:", key="full_name")
+            st.text_input("Phone Number:", key="phone")
+            st.date_input("Today's date:", key="date")
+            st.text_input("Building:", key="building")
+            st.text_input("Apartment Number:", key="apartment")
+            st.text_input("Specific location of issue within apartment (ie bathroom, kitchen, Bedroom A, etc):", key="location")
+            st.text_area("Description of repair needed:", key="description")
+            st.file_uploader("Upload a photo of the issue (if applicable):", key="photo")
             submitted = st.form_submit_button("Submit Request")
             if submitted:
                 st.success("Your maintenance request has been submitted successfully!")
-                add_maintenance_request(title="Maintenance Request", description="Description of repair needed", created_by=1, assigned_to=None, status="open", created_at=None, updated_at=None, 
-                                        fullname= "Full Name", phone="Phone Number", date="Today's date", building="Building", apartment="Apartment Number", location="Specific location of issue within apartment")
+                add_maintenance_request(
+                    title="Maintenance Request",
+                    description=st.session_state.get("description", ""),
+                    created_by=1,
+                    assigned_to="",
+                    status="open",
+                    created_at=st.session_state.get("date", ""),
+                    updated_at=st.session_state.get("date", ""),
+                    full_name=st.session_state.get("full_name", ""),
+                    phone=st.session_state.get("phone", ""),
+                    date=st.session_state.get("date", ""),
+                    building=st.session_state.get("building", ""),
+                    apartment=st.session_state.get("apartment", ""),
+                    location=st.session_state.get("location", "")
+                )
