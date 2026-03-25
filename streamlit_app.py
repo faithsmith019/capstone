@@ -7,7 +7,22 @@ import Data.information as data
 st.set_page_config(
     page_title="Login View",
     page_icon="🔐",
+    layout="wide"
 )
+
+# Custom CSS to make the app fill the entire screen width
+st.markdown("""
+<style>
+    .main .block-container {
+        max-width: 100%;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    .stApp {
+        background-color: black;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 init_db = st.session_state.get('init_db')
 if not init_db:
@@ -98,7 +113,7 @@ role = st.session_state.get('role')
 if authentication_status is False:
     st.error("Username/password is incorrect")
 elif authentication_status is None:
-    st.warning("Please enter your username and password")
+    st.warning("Please enter your username and password. If you don't have one, please contact Res Life")
 
 # Sidebar: show app nav and current role
 with st.sidebar:
@@ -151,7 +166,39 @@ elif page == 'worker':
 elif page == 'supervisor':
     from views.supervisor import render_supervisor
     render_supervisor()
+elif page == 'supervisor_view_upcoming':
+    from views.supervisor import betterDisplayIncomingRequest
+    if st.button("🏠 Back to Supervisor Home"):
+        st.session_state['page'] = 'supervisor'
+    betterDisplayIncomingRequest()
+elif page == 'supervisor_view_past':
+    from views.supervisor import showPastRequests
+    if st.button("🏠 Back to Supervisor Home"):
+        st.session_state['page'] = 'supervisor'
+    showPastRequests()
+elif page == 'supervisor_add_user':
+    from views.supervisor import register_user
+    if st.button("🏠 Back to Supervisor Home"):
+        st.session_state['page'] = 'supervisor'
+    register_user()
+elif page == 'supervisor_edit_roles':
+    from views.supervisor import edit_user_roles
+    if st.button("🏠 Back to Supervisor Home"):
+        st.session_state['page'] = 'supervisor'
+    edit_user_roles()
 elif page == 'maintenanceForm':
     # lazy-load the maintenance form only when requested
     from Controller.requestor import mainteanceForm
+    if st.button("🏠 Back to Requestor Home"):
+        st.session_state['page'] = 'requestor'
     mainteanceForm()
+elif page == 'view_status':
+    st.title("📋 View Status of Your Requests")
+    if st.button("🏠 Back to Requestor Home"):
+        st.session_state['page'] = 'requestor'
+    st.write("This feature is coming soon! Here you will see the status of your submitted maintenance requests.")
+elif page == 'edit_profile':
+    st.title("👤 Edit Your Profile Information")
+    if st.button("🏠 Back to Requestor Home"):
+        st.session_state['page'] = 'requestor'
+    st.write("This feature is coming soon! Here you can update your profile details.")
