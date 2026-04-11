@@ -4,7 +4,15 @@ from pathlib import Path
 import pickle
 import streamlit_authenticator as stauth
 import sqlite3
-from Data.information import init_db, add_user, add_maintenance_request
+from Data.information import (
+    init_db,
+    add_user,
+    add_maintenance_request,
+    get_requests,
+    get_request_by_id,
+    add_notification,
+)
+from Controller.emailService import send_status_notification_email
 
 
 def render_supervisor():
@@ -13,6 +21,7 @@ def render_supervisor():
 
     col1, col2 = st.columns(2)
     col3, col4 = st.columns(2)
+    col5, col6 = st.columns(2)
 
     with col1:
         if st.button("📋 View Upcoming Requests", use_container_width=True):
@@ -23,10 +32,14 @@ def render_supervisor():
             st.session_state['page'] = 'supervisor_view_past'
 
     with col3:
+        if st.button("✅ View Approved Requests", use_container_width=True):
+            st.session_state['page'] = 'supervisor_view_approved'
+
+    with col4:
         if st.button("👤 Add New User", use_container_width=True):
             st.session_state['page'] = 'supervisor_add_user'
 
-    with col4:
+    with col5:
         if st.button("🔧 Edit User Roles", use_container_width=True):
             st.session_state['page'] = 'supervisor_edit_roles'
       
@@ -243,46 +256,29 @@ def update_request_status(request_id, new_status):
         SET status = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
     """, (new_status, request_id))
-    
     conn.commit()
     conn.close()
-    """Fetch incoming maintenance requests from the database."""
-    # central database lives in the Data package
-    db_path = Path(__file__).parents[1] / "Data" / "maintenance_app.db"
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
-    cursor.execute("""
-        SELECT id, title, description, status, created_by, assigned_to,
-               full_name, phone, date, building, apartment, location
-        FROM maintenance_requests 
-        WHERE status = 'open'
-    """)
-    
-    rows = cursor.fetchall()
-    conn.close()
-    
-    requests = []
-    for row in rows:
-        requests.append({
-            'id': row[0],
-            'title': row[1],
-            'description': row[2],
-            'status': row[3],
-            'created_by': row[4],
-            'assigned_to': row[5],
-            'full_name': row[6],
-            'phone': row[7],
-            'date': row[8],
-            'building': row[9],
-            'apartment': row[10],
-            'location': row[11]
-        })
-    return requests
+
+    # Add a notification for the requestor and fire an email if available
+    req = get_request_by_id(request_id)
+    if req is not None:
+        requestor_id = req.get('created_by') or req.get('requestor_email') or ''
+        msg = f"Your maintenance request #{request_id} status has been changed to '{new_status}'."
+        add_notification(requestor_id, request_id, msg, notification_type="status_change")
+
+        requestor_email = req.get('requestor_email')
+        if requestor_email:
+            success, info = send_status_notification_email(requestor_email, request_id, new_status, msg)
+            if not success:
+                st.warning(f"Email notification failed for request #{request_id}: {info}")
+    else:
+        st.warning(f"Request #{request_id} not found while creating notification")
+
+    return True
 def showIncomingRequests():
     st.subheader("Incoming Requests")
     st.write("This section will display all incoming maintenance requests for the supervisor to review and assign to workers.")
-    incoming_requests = get_requests()  # This function should fetch requests from the database
+    incoming_requests = get_requests(all_status=False)  # open requests only
     if incoming_requests:
         for req in incoming_requests:
             st.write(f"**Request ID:** {req['id']}")
@@ -305,72 +301,56 @@ def showIncomingRequests():
     else:
         st.info("No incoming requests at the moment.")
 
+
+def showApprovedRequests():
+    st.subheader("Approved Requests")
+    approved_requests = [r for r in get_requests(all_status=True) if r['status'] == 'approved']
+    if not approved_requests:
+        st.info("No approved requests at this time.")
+        return
+
+    for req in approved_requests:
+        st.write(f"**Request ID:** {req['id']}")
+        st.write(f"**Title:** {req['title']}")
+        st.write(f"**Description:** {req['description']}")
+        st.write(f"**Status:** {req['status']}")
+        st.write(f"**Created By:** {req['created_by']}")
+        st.write(f"**Assigned To:** {req['assigned_to']}")
+        if req.get('full_name'):
+            st.write(f"**Requestor:** {req['full_name']}")
+        if req.get('phone'):
+            st.write(f"**Phone:** {req['phone']}")
+        if req.get('date'):
+            st.write(f"**Date:** {req['date']}")
+        if req.get('building') or req.get('apartment') or req.get('location'):
+            loc = f"{req.get('building','')} {req.get('apartment','')} {req.get('location','')}".strip()
+            st.write(f"**Location:** {loc}")
+        st.write("---")
 def showPastRequests():
     st.subheader("Past Requests")
-    st.write("There are currently no past requests to show.")
-    # central database lives in the Data package
-    db_path = Path(__file__).parents[1] / "Data" / "maintenance_app.db"
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
-    cursor.execute("""
-        SELECT id, title, description, status, created_by, assigned_to,
-               full_name, phone, date, building, apartment, location
-        FROM maintenance_requests 
-        WHERE status = 'closed' OR status = 'completed'
-    """)
-    
-    rows = cursor.fetchall()
-    conn.close()
-    
-    requests = []
-    for row in rows:
-        requests.append({
-            'id': row[0],
-            'title': row[1],
-            'description': row[2],
-            'status': row[3],
-            'created_by': row[4],
-            'assigned_to': row[5],
-            'full_name': row[6],
-            'phone': row[7],
-            'date': row[8],
-            'building': row[9],
-            'apartment': row[10],
-            'location': row[11]
-        })
-    return requests
-def get_requests():
-    """Fetch incoming maintenance requests from the database."""
-    # central database lives in the Data package
-    db_path = Path(__file__).parents[1] / "Data" / "maintenance_app.db"
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
-    cursor.execute("""
-        SELECT id, title, description, status, created_by, assigned_to,
-               full_name, phone, date, building, apartment, location
-        FROM maintenance_requests 
-        WHERE status = 'open'
-    """)
-    
-    rows = cursor.fetchall()
-    conn.close()
-    
-    requests = []
-    for row in rows:
-        requests.append({
-            'id': row[0],
-            'title': row[1],
-            'description': row[2],
-            'status': row[3],
-            'created_by': row[4],
-            'assigned_to': row[5],
-            'full_name': row[6],
-            'phone': row[7],
-            'date': row[8],
-            'building': row[9],
-            'apartment': row[10],
-            'location': row[11]
-        })
-    return requests
+    all_requests = get_requests(all_status=True)
+    past_requests = [r for r in all_requests if r['status'] in ('closed', 'completed')]
+
+    if not past_requests:
+        st.info("No past requests found.")
+        return []
+
+    for req in past_requests:
+        st.write(f"**Request ID:** {req['id']}")
+        st.write(f"**Title:** {req['title']}")
+        st.write(f"**Description:** {req['description']}")
+        st.write(f"**Status:** {req['status']}")
+        st.write(f"**Created By:** {req['created_by']}")
+        st.write(f"**Assigned To:** {req['assigned_to']}")
+        if req.get('full_name'):
+            st.write(f"**Requestor:** {req['full_name']}")
+        if req.get('phone'):
+            st.write(f"**Phone:** {req['phone']}")
+        if req.get('date'):
+            st.write(f"**Date:** {req['date']}")
+        if req.get('building') or req.get('apartment') or req.get('location'):
+            loc = f"{req.get('building','')} {req.get('apartment','')} {req.get('location','')}".strip()
+            st.write(f"**Location:** {loc}")
+        st.write("---")
+
+    return past_requests

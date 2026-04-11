@@ -13,6 +13,7 @@ def mainteanceForm():
             st.write("If you are unsure if your issue is an emergency please calll the RA number and they can help you determine that.")
             st.write(" UC RA 1(316)295-5232 \n GRH RA 1(316)295-5231")
             st.text_input("Full Name:", key="full_name")
+            st.text_input("Email Address (for notifications):", key="requestor_email")
             st.text_input("Phone Number:", key="phone")
             st.date_input("Today's date:", key="date")
             st.text_input("Building:", key="building")
@@ -26,14 +27,15 @@ def mainteanceForm():
                 add_maintenance_request(
                     title="Maintenance Request",
                     description=st.session_state.get("description", ""),
-                    created_by=1,
+                    created_by=st.session_state.get("username", "requestor"),
+                    requestor_email=st.session_state.get("requestor_email", ""),
                     assigned_to="",
                     status="open",
-                    created_at=st.session_state.get("date", ""),
-                    updated_at=st.session_state.get("date", ""),
+                    created_at=str(st.session_state.get("date", "")),
+                    updated_at=str(st.session_state.get("date", "")),
                     full_name=st.session_state.get("full_name", ""),
                     phone=st.session_state.get("phone", ""),
-                    date=st.session_state.get("date", ""),
+                    date=str(st.session_state.get("date", "")),
                     building=st.session_state.get("building", ""),
                     apartment=st.session_state.get("apartment", ""),
                     location=st.session_state.get("location", "")

@@ -163,6 +163,21 @@ if page == 'requestor':
 elif page == 'worker':
     from views.workerview import render_worker
     render_worker()
+elif page == 'worker_view_upcoming':
+    from views.workerview import showIncomingWorkRequests
+    if st.button("🏠 Back to Supervisor Home"):
+        st.session_state['page'] = 'worker'
+    showIncomingWorkRequests()
+elif page == 'worker_view_past':
+    from views.workerview import showPastWorkRequests
+    if st.button("🏠 Back to Supervisor Home"):
+        st.session_state['page'] = 'worker'
+    showPastWorkRequests()
+elif page == 'worker_view_assigned':
+    from views.workerview import showAssignedWorkRequests
+    if st.button("🏠 Back to Supervisor Home"):
+        st.session_state['page'] = 'worker'
+    showAssignedWorkRequests()
 elif page == 'supervisor':
     from views.supervisor import render_supervisor
     render_supervisor()
@@ -176,6 +191,11 @@ elif page == 'supervisor_view_past':
     if st.button("🏠 Back to Supervisor Home"):
         st.session_state['page'] = 'supervisor'
     showPastRequests()
+elif page == 'supervisor_view_approved':
+    from views.supervisor import showApprovedRequests
+    if st.button("🏠 Back to Supervisor Home"):
+        st.session_state['page'] = 'supervisor'
+    showApprovedRequests()
 elif page == 'supervisor_add_user':
     from views.supervisor import register_user
     if st.button("🏠 Back to Supervisor Home"):
@@ -193,10 +213,11 @@ elif page == 'maintenanceForm':
         st.session_state['page'] = 'requestor'
     mainteanceForm()
 elif page == 'view_status':
+    from views.requestorview import show_requestor_status
     st.title("📋 View Status of Your Requests")
     if st.button("🏠 Back to Requestor Home"):
         st.session_state['page'] = 'requestor'
-    st.write("This feature is coming soon! Here you will see the status of your submitted maintenance requests.")
+    show_requestor_status()
 elif page == 'edit_profile':
     st.title("👤 Edit Your Profile Information")
     if st.button("🏠 Back to Requestor Home"):

@@ -1,5 +1,50 @@
 import streamlit as st
 from Controller.requestor import mainteanceForm
+import Data.information as data
+
+
+def show_requestor_notifications():
+    user_id = st.session_state.get('username')
+    if not user_id:
+        return
+
+    notifications = data.get_notifications_for_user(user_id, unread_only=True)
+    if notifications:
+        st.warning("You have updates on your maintenance requests:")
+        for n in notifications:
+            st.info(f"{n['created_at']}: {n['message']}")
+        data.mark_notifications_read(user_id)
+
+
+def show_requestor_status():
+    user_id = st.session_state.get('username')
+    if not user_id:
+        st.warning("No requestor logged in.")
+        return
+
+    all_requests = data.get_requests(all_status=True)
+    my_requests = [r for r in all_requests if str(r.get('created_by')) == str(user_id) or r.get('requestor_email') == st.session_state.get('requestor_email')]
+
+    st.title("📋 Your Maintenance Requests")
+    if not my_requests:
+        st.info("No requests found for your account.")
+        return
+
+    status_filter = st.selectbox("Filter requests by status", ["all", "open", "approved", "rejected", "closed", "completed"], index=0)
+    filtered_requests = [r for r in my_requests if status_filter == "all" or r['status'] == status_filter]
+
+    if not filtered_requests:
+        st.info(f"No {status_filter} requests found.")
+        return
+
+    st.markdown(f"**Showing {len(filtered_requests)} {status_filter if status_filter!='all' else 'all'} requests**")
+
+    for r in filtered_requests:
+        st.markdown(f"### Request #{r['id']} - {r['title']}")
+        st.markdown(f"**Status:** {r['status']}")
+        st.markdown(f"**Submitted:** {r['date']} | {r['building']} {r['apartment']} {r['location']}")
+        st.markdown(f"**Description:** {r['description']}")
+        st.markdown("---")
 
 
 def render_requestor():
@@ -11,6 +56,9 @@ def render_requestor():
     session_state = st.session_state
     st.title("🏠 Welcome to the Maintenance App!")
     st.write(f"Welcome {session_state.get('name', 'Guest')}! 👋")
+
+    show_requestor_notifications()
+
     st.write("Please select which action you would like to do:")
 
     col1, col2, col3 = st.columns(3)
