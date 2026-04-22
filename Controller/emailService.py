@@ -24,7 +24,7 @@ def send_email(email_sender: str, password: str, email_receiver: str, subject: s
         return False, str(e)
 
 
-def send_status_notification_email(requestor_email: str, request_id: int, status: str, message: str):
+def send_status_notification_email(requestor_email: str, request_id: int, status: str, message: str, requestor_name: str = ""):
     """Send a status change message to a requestor using environment credentials.
 
     Enable via env vars: EMAIL_SENDER, EMAIL_PASSWORD.
@@ -35,7 +35,8 @@ def send_status_notification_email(requestor_email: str, request_id: int, status
         return False, "Missing EMAIL_SENDER or EMAIL_PASSWORD environment variables"
 
     subject = f"Maintenance Request #{request_id} status updated to {status}"
-    body = f"Dear resident,\n\nYour request #{request_id} status is now '{status}'.\n\n{message}\n\nThank you,\nMaintenance Team"
+    greeting = f"Dear {requestor_name}," if requestor_name else "Dear resident,"
+    body = f"{greeting}\n\n{message}\n\nWe appreciate your patience and are working diligently to resolve your maintenance needs.\n\nThank you,\nMaintenance Team"
 
     return send_email(email_sender, password, requestor_email, subject, body)
 

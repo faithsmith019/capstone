@@ -23,26 +23,29 @@ def show_requestor_status():
         return
 
     all_requests = data.get_requests(all_status=True)
-    my_requests = [r for r in all_requests if str(r.get('created_by')) == str(user_id) or r.get('requestor_email') == st.session_state.get('requestor_email')]
-
-    st.title("📋 Your Maintenance Requests")
+    
+    # Filter requests: match by created_by username (primary match)
+    my_requests = [r for r in all_requests if str(r.get('created_by')).strip() == str(user_id).strip()]
+    
     if not my_requests:
-        st.info("No requests found for your account.")
+        st.warning(f"No requests found for user '{user_id}'.")
+        st.info("You haven't submitted any maintenance requests yet. Click the 'Submit a Maintenance Request' button to create one.")
         return
 
-    status_filter = st.selectbox("Filter requests by status", ["all", "open", "approved", "rejected", "closed", "completed"], index=0)
+    status_filter = st.selectbox("Filter requests by status", ["all", "open", "approved", "queued", "in_progress", "on_hold", "completed", "rejected"], index=0)
     filtered_requests = [r for r in my_requests if status_filter == "all" or r['status'] == status_filter]
 
     if not filtered_requests:
         st.info(f"No {status_filter} requests found.")
         return
 
-    st.markdown(f"**Showing {len(filtered_requests)} {status_filter if status_filter!='all' else 'all'} requests**")
+    st.markdown(f"**Showing {len(filtered_requests)} {status_filter if status_filter!='all' else 'all'} request(s)**")
+    st.markdown("---")
 
     for r in filtered_requests:
         st.markdown(f"### Request #{r['id']} - {r['title']}")
         st.markdown(f"**Status:** {r['status']}")
-        st.markdown(f"**Submitted:** {r['date']} | {r['building']} {r['apartment']} {r['location']}")
+        st.markdown(f"**Submitted:** {r['date']} | Building: {r['building']}, Apt: {r['apartment']}, Location: {r['location']}")
         st.markdown(f"**Description:** {r['description']}")
         st.markdown("---")
 

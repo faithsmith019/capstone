@@ -1,10 +1,31 @@
 import streamlit as st
 import Data.information as data
+import os
+
+# Set email credentials
+os.environ['EMAIL_SENDER'] = 'falconfacilities2026@gmail.com'
+os.environ['EMAIL_PASSWORD'] = 'vefyxrqrpzgmxcrr'
+
+
+def show_worker_notifications():
+    """Display unread notifications for the worker."""
+    user_id = st.session_state.get('username')
+    if not user_id:
+        return
+
+    notifications = data.get_notifications_for_user(user_id, unread_only=True)
+    if notifications:
+        st.warning("You have updates on your maintenance requests:")
+        for n in notifications:
+            st.info(f"{n['created_at']}: {n['message']}")
+        data.mark_notifications_read(user_id)
 
 
 def render_worker():
     st.title("👔 Worker Dashboard")
     st.write("Manage work requests")
+
+    show_worker_notifications()
 
     col1, col2 = st.columns(2)
     col3, col4 = st.columns(2)
@@ -23,14 +44,16 @@ def render_worker():
 
 
 def betterDisplayIncomingWorkRequests():
-    """Display incoming work requests (unassigned only, sorted by seen status)."""
+    """Display incoming work requests (approved and queued unassigned, sorted by seen status)."""
     all_requests = data.get_requests(all_status=True)
     
-    # Filter: open requests that are UNASSIGNED (not yet assigned to anyone)
+    # Filter: approved or queued requests that are UNASSIGNED (not yet assigned to anyone)
+    # Approved = reviewed but not seen by worker yet
+    # Queued = seen by worker, waiting for assignment
     # Note: assigned_to is empty string when unassigned
     incoming = [
         r for r in all_requests 
-        if r['status'] == 'open' and not r.get('assigned_to')
+        if r['status'] in ('approved', 'queued') and not r.get('assigned_to')
     ]
     
     # Sort: unseen first, then seen
@@ -55,8 +78,8 @@ def betterDisplayIncomingWorkRequests():
     top_col1, top_col2, top_col3 = st.columns([0.3, 0.2, 0.5])
     with top_col1:
         show_filter = st.checkbox("Show only unseen", value=True, key="filter_unseen")
-    with top_col2:
-        select_all = st.checkbox("Select All", key="select_all_worker")
+    #with top_col2:
+        #select_all = st.checkbox("Select All", key="select_all_worker")
     with top_col3:
         if st.button("🤝 Assign Selected to Me"):
             action = 'assign_to_me'
@@ -67,8 +90,8 @@ def betterDisplayIncomingWorkRequests():
     else:
         filtered = incoming
     
-    if select_all:
-        checked_ids = [r['id'] for r in filtered]
+    #if select_all:
+        #checked_ids = [r['id'] for r in filtered]
     
     checked_ids = []
     
@@ -165,10 +188,10 @@ def showIncomingWorkRequests():
 
 
 def showPastWorkRequests():
-    """Display completed/closed work requests."""
+    """Display completed work requests."""
     st.subheader("Past Work Requests")
     all_requests = data.get_requests(all_status=True)
-    past = [r for r in all_requests if r['status'] in ('closed', 'completed')]
+    past = [r for r in all_requests if r['status'] == 'completed']
     
     if not past:
         st.info("No past work requests to show.")
@@ -203,11 +226,11 @@ def showAssignedWorkRequests():
 
     all_requests = data.get_requests(all_status=True)
     
-    # Filter to assigned requests (not completed/closed)
+    # Filter to assigned requests (not completed or on_hold)
     # Note: assigned_to is empty string when unassigned
     assigned_requests = [
         r for r in all_requests 
-        if r.get('assigned_to') and r['status'] not in ('closed', 'completed')
+        if r.get('assigned_to') and r['status'] not in ('completed', 'on_hold')
     ]
     
     if not assigned_requests:

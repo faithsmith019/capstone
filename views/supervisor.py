@@ -4,6 +4,12 @@ from pathlib import Path
 import pickle
 import streamlit_authenticator as stauth
 import sqlite3
+import os
+
+# Set email credentials
+os.environ['EMAIL_SENDER'] = 'falconfacilities2026@gmail.com'
+os.environ['EMAIL_PASSWORD'] = 'vefyxrqrpzgmxcrr'
+
 from Data.information import (
     init_db,
     add_user,
@@ -123,8 +129,10 @@ def edit_user_roles():
         st.rerun()
 
 def betterDisplayIncomingRequest():
-    # load incoming requests
-    requests = get_requests()
+    st.subheader("📋 Incoming Requests")
+    
+    # load incoming requests - only open requests
+    requests = get_requests(all_status=False)
     
     # Display messages at the top
     if "error_msg" in st.session_state:
@@ -134,7 +142,12 @@ def betterDisplayIncomingRequest():
         st.success(st.session_state["success_msg"])
         del st.session_state["success_msg"]
     
-    selected_ids = st.session_state.get("selected_ids", [])
+    if not requests:
+        st.info("No incoming requests at the moment.")
+        return
+    
+    # Retrieve persistent state for selected IDs
+    selected_ids = st.session_state.get("supervisor_selected_ids", [])
     
     checked_ids = []
     
@@ -143,40 +156,38 @@ def betterDisplayIncomingRequest():
     # Top row: Filter, Select All, Approve, Reject
     top_col1, top_col2, top_col3 = st.columns([0.2, 0.2, 0.6])
     with top_col1:
-        status_filter = st.selectbox("Filter Status", ["All","open","approved","rejected"])
-    with top_col2:
-        select_all = st.checkbox("Select All", key="select_all")
+        status_filter = st.selectbox("Filter Status", ["All","open","approved","queued","in_progress","on_hold","completed","rejected"], key="supervisor_status_filter")
+    # with top_col2:
+        # select_all = st.checkbox("Select All", key="supervisor_select_all")
     with top_col3:
         button_cols = st.columns(2)
         with button_cols[0]:
-            if st.button("Approve Selected"):
+            if st.button("✅ Approve Selected", key="supervisor_approve_btn"):
                 action = 'approve'
         with button_cols[1]:
-            if st.button("Reject Selected"):
+            if st.button("❌ Reject Selected", key="supervisor_reject_btn"):
                 action = 'reject'
     
-    filtered = [
+    df_to_display = [
         r for r in requests
         if (status_filter=="All" or r["status"]==status_filter)
     ]
     
-    if select_all:
-        selected_ids = [r['id'] for r in filtered]
-    
+    #if select_all:
+       # checked_ids = [r['id'] for r in df_to_display]
+    #else:
     checked_ids = []
     
     # Columns: List + Details (pushed details to the right)
     list_col, detail_col = st.columns([2.5, 1.5])
     
     # Track selected request
-    if "selected_request" not in st.session_state:
-        st.session_state["selected_request"] = None
-    
-    selected_ids = []
+    if "supervisor_selected_request" not in st.session_state:
+        st.session_state["supervisor_selected_request"] = None
     
     # Left: Request List (table-like)
     with list_col:
-        st.subheader("Requests")
+        st.markdown("**Requests List**")
         # Header
         col1, col2, col3, col4, col5, col6 = st.columns([0.5, 0.4, 0.4, 0.8, 0.8, 0.5])
         with col1: st.markdown("<h4>Select</h4>", unsafe_allow_html=True)
@@ -187,57 +198,70 @@ def betterDisplayIncomingRequest():
         with col6: st.markdown("<h4>Status</h4>", unsafe_allow_html=True)
         st.markdown("---")
         
-        for r in filtered:
-            col1, col2, col3, col4, col5, col6 = st.columns([0.5, 0.4, 0.4, 0.8, 0.8, 0.5])
-            with col1:
-                checked = st.checkbox("", value=r['id'] in selected_ids, key=f"chk_{r['id']}")
-                if checked:
-                    checked_ids.append(r['id'])
-                    st.session_state["selected_request"] = r
-                else:
-                    if st.session_state.get("selected_request") == r:
-                        st.session_state["selected_request"] = None
-            with col2:
-                st.write(r['id'])
-            with col3:
-                st.write(r['full_name'])
-            with col4:
-                st.write(r['building'])
-            with col5:
-                st.write(r['apartment'])
-            with col6:
-                st.write(r['status'])
+        if not df_to_display:
+            st.info(f"No {status_filter} requests found.")
+        else:
+            for r in df_to_display:
+                col1, col2, col3, col4, col5, col6 = st.columns([0.5, 0.4, 0.4, 0.8, 0.8, 0.5])
+                with col1:
+                    checked = st.checkbox("", value=r['id'] in checked_ids, key=f"supervisor_chk_{r['id']}")
+                    if checked and r['id'] not in checked_ids:
+                        checked_ids.append(r['id'])
+                        st.session_state["supervisor_selected_request"] = r
+                    elif not checked and r['id'] in checked_ids:
+                        checked_ids.remove(r['id'])
+                with col2:
+                    st.write(r['id'])
+                with col3:
+                    st.write(r['full_name'])
+                with col4:
+                    st.write(r['building'])
+                with col5:
+                    st.write(r['apartment'])
+                with col6:
+                    st.write(r['status'])
     
-    st.session_state["selected_ids"] = checked_ids
+    # Save state
+    st.session_state["supervisor_selected_ids"] = checked_ids
     
     if not checked_ids:
-        st.session_state["selected_request"] = None
+        st.session_state["supervisor_selected_request"] = None
     
+    # Handle actions
     if action:
         if not checked_ids:
             st.session_state["error_msg"] = "Error: You have not selected anything. Select an item first before deciding to approve or reject it"
+            st.rerun()
         elif action == 'approve':
             for req_id in checked_ids:
                 update_request_status(req_id, 'approved')
-            st.session_state["success_msg"] = f"Approved requests: {checked_ids}"
-            st.session_state["selected_request"] = None
+            st.session_state["success_msg"] = f"Approved {len(checked_ids)} request(s)"
+            st.session_state["supervisor_selected_request"] = None
+            st.session_state["supervisor_selected_ids"] = []
             st.rerun()
         elif action == 'reject':
             for req_id in checked_ids:
                 update_request_status(req_id, 'rejected')
-            st.session_state["success_msg"] = f"Rejected requests: {checked_ids}"
-            st.session_state["selected_request"] = None
+            st.session_state["success_msg"] = f"Rejected {len(checked_ids)} request(s)"
+            st.session_state["supervisor_selected_request"] = None
+            st.session_state["supervisor_selected_ids"] = []
             st.rerun()
     
     # Right: Request Details
     with detail_col:
-        req = st.session_state["selected_request"]
+        req = st.session_state.get("supervisor_selected_request")
         if req:
             st.subheader("Request Details")
             st.markdown(f"### #{req['id']} - {req['title']}")
             st.markdown(f"**Description:** {req['description']}")
             st.markdown(f"**Status:** {req['status']}")
             st.markdown("---")
+            st.markdown("**Tenant:**")
+            st.markdown(f"{req['full_name']} | {req['phone']}")
+            st.markdown(f"Submitted: {req['date']}")
+            st.markdown("---")
+            st.markdown("**Location:**")
+            st.markdown(f"{req['building']} {req['apartment']} {req['location']}")
             st.markdown("**Tenant:**")
             st.markdown(f"{req['full_name']} | {req['phone']}")
             st.markdown(f"Submitted: {req['date']}")
@@ -268,7 +292,7 @@ def update_request_status(request_id, new_status):
 
         requestor_email = req.get('requestor_email')
         if requestor_email:
-            success, info = send_status_notification_email(requestor_email, request_id, new_status, msg)
+            success, info = send_status_notification_email(requestor_email, request_id, new_status, msg, req.get('full_name') or "")
             if not success:
                 st.warning(f"Email notification failed for request #{request_id}: {info}")
     else:
@@ -329,7 +353,7 @@ def showApprovedRequests():
 def showPastRequests():
     st.subheader("Past Requests")
     all_requests = get_requests(all_status=True)
-    past_requests = [r for r in all_requests if r['status'] in ('closed', 'completed')]
+    past_requests = [r for r in all_requests if r['status'] == 'completed']
 
     if not past_requests:
         st.info("No past requests found.")

@@ -1,6 +1,16 @@
 # the database for the web app
 import sqlite3
 from pathlib import Path    
+import os
+
+# Set email credentials
+os.environ['EMAIL_SENDER'] = 'falconfacilities2026@gmail.com'
+os.environ['EMAIL_PASSWORD'] = 'vefyxrqrpzgmxcrr'
+
+# Import email service
+import sys
+sys.path.append(str(Path(__file__).parents[1] / "Controller"))
+from emailService import send_status_notification_email    
 
 def init_db():
     """Initialize the SQLite database and create necessary tables."""
@@ -261,59 +271,66 @@ def get_requests(all_status: bool = True):
 
 
 def mark_request_seen(request_id: int):
-    """Mark a request as viewed by a worker and send notification to requestor."""
+    """Mark a request as viewed by a worker and change status from approved to queued."""
     db_path = Path(__file__).parent / "maintenance_app.db"
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
     # Get request details first
     cursor.execute("""
-        SELECT created_by, requestor_email, worker_viewed
+        SELECT created_by, requestor_email, worker_viewed, status, full_name
         FROM maintenance_requests
         WHERE id = ?
     """, (request_id,))
     row = cursor.fetchone()
     
     if row and row[2] == 0:  # Only if not already marked as viewed
-        # Mark as viewed
+        # Mark as viewed and change status from approved to queued
+        new_status = 'queued' if row[3] == 'approved' else row[3]
         cursor.execute("""
             UPDATE maintenance_requests
-            SET worker_viewed = 1
+            SET worker_viewed = 1, status = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        """, (request_id,))
+        """, (new_status, request_id))
         conn.commit()
         
         # Send notification to requestor
         requestor_id = row[0] or row[1]
         if requestor_id:
+            message = f"Your maintenance request #{request_id} is now queued for assignment."
             cursor.execute("""
                 INSERT INTO notifications (user_id, request_id, notification_type, message)
                 VALUES (?, ?, ?, ?)
-            """, (requestor_id, request_id, "seen", f"Your maintenance request #{request_id} has been reviewed by a worker."))
+            """, (requestor_id, request_id, "seen", message))
             conn.commit()
+            
+            # Send email notification if requestor_email is available
+            requestor_email = row[1]
+            if requestor_email:
+                send_status_notification_email(requestor_email, request_id, new_status, message, row[4] or "")
     
     conn.close()
 
 
 def assign_request_to_worker(request_id: int, worker_id: str):
-    """Assign a request to a worker and send notification to requestor."""
+    """Assign a request to a worker, change status to in_progress, and send notification."""
     db_path = Path(__file__).parent / "maintenance_app.db"
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
     # Get request details
     cursor.execute("""
-        SELECT created_by, requestor_email
+        SELECT created_by, requestor_email, status, full_name
         FROM maintenance_requests
         WHERE id = ?
     """, (request_id,))
     row = cursor.fetchone()
     
     if row:
-        # Update assignment
+        # Update assignment and change status to in_progress
         cursor.execute("""
             UPDATE maintenance_requests
-            SET assigned_to = ?, updated_at = CURRENT_TIMESTAMP
+            SET assigned_to = ?, status = 'in_progress', updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         """, (worker_id, request_id))
         conn.commit()
@@ -321,11 +338,17 @@ def assign_request_to_worker(request_id: int, worker_id: str):
         # Send notification to requestor
         requestor_id = row[0] or row[1]
         if requestor_id:
+            message = f"Your maintenance request #{request_id} is now in progress."
             cursor.execute("""
                 INSERT INTO notifications (user_id, request_id, notification_type, message)
                 VALUES (?, ?, ?, ?)
-            """, (requestor_id, request_id, "assigned", f"Your maintenance request #{request_id} has been assigned to a worker."))
+            """, (requestor_id, request_id, "assigned", message))
             conn.commit()
+            
+            # Send email notification if requestor_email is available
+            requestor_email = row[1]
+            if requestor_email:
+                send_status_notification_email(requestor_email, request_id, 'in_progress', message, row[3] or "")
     
     conn.close()
 
