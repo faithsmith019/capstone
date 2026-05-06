@@ -11,6 +11,7 @@ st.set_page_config(
 )
 
 # Custom CSS to make the app fill the entire screen width
+# and apply app-level styling for the Streamlit page.
 st.markdown("""
 <style>
     .main .block-container {
@@ -34,6 +35,13 @@ if not init_db:
 CREDENTIALS_FILE = Path(__file__).parent / "hashed_pw.pkl"
 
 def infer_role_from_username(uname: str) -> str:
+    """Infer a user role from a username string.
+
+    Inputs:
+        uname: the username to parse.
+    Returns:
+        A role string used by the app: 'requestor', 'supervisor', or 'worker'.
+    """
     u = (uname or "").lower()
     if 'requestor' in u:
         return 'requestor'
@@ -44,7 +52,7 @@ def infer_role_from_username(uname: str) -> str:
     return 'requestor'
 
 def load_credentials():
-    """Load credentials from pickle file."""
+    """Load credentials from the local pickle file and migrate missing roles."""
     if CREDENTIALS_FILE.exists():
         with CREDENTIALS_FILE.open("rb") as file:
             credentials = pickle.load(file)
@@ -63,11 +71,11 @@ def load_credentials():
     return {"usernames": {}}
 
 def save_credentials(credentials):
-    """Save credentials to pickle file."""
+    """Save the provided credentials dictionary to the local pickle file."""
     with CREDENTIALS_FILE.open("wb") as file:
         pickle.dump(credentials, file)
 
-# Load initial credentials
+# Load initial credentials from disk once when the app loads
 credentials = load_credentials()
 
 # Initialize authenticator only once per user session to prevent
@@ -95,6 +103,8 @@ if not authentication_status:
     for k in ('page', 'role'):
         st.session_state.pop(k, None)
     authenticator.login(location='main', key='Login')
+
+# After login, ensure the user's role is loaded into session state.
 
 # If authentication_status is None/False we'll still show messages below
 
@@ -128,6 +138,7 @@ with st.sidebar:
     st.header("Navigation")
 
     def nav_button(label, page_key):
+        """Render a sidebar navigation button that changes the current page."""
         if st.button(label):
             st.session_state['page'] = page_key
 
@@ -153,10 +164,12 @@ if not st.session_state.get('authentication_status'):
 # Render the selected view (views are in `views/` package so they don't show up in Streamlit's Pages menu)
 page = st.session_state.get('page')
 if not page and authentication_status:
-    # default to role home and persist it so no sidebar click required
+    # Default to the logged-in user's role home page if no page has been selected yet.
     page = role
     st.session_state['page'] = page
-data.init_db()  # ensure DB is initialized before any view tries to use it
+
+# Ensure the database exists and schema is initialized before any views use it.
+data.init_db()
 if page == 'requestor':
     from views.requestorview import render_requestor
     render_requestor()
@@ -165,17 +178,17 @@ elif page == 'worker':
     render_worker()
 elif page == 'worker_view_upcoming':
     from views.workerview import showIncomingWorkRequests
-    if st.button("🏠 Back to Supervisor Home"):
+    if st.button("🏠 Back to Worker Home"):
         st.session_state['page'] = 'worker'
     showIncomingWorkRequests()
 elif page == 'worker_view_past':
     from views.workerview import showPastWorkRequests
-    if st.button("🏠 Back to Supervisor Home"):
+    if st.button("🏠 Back to Worker Home"):
         st.session_state['page'] = 'worker'
     showPastWorkRequests()
 elif page == 'worker_view_assigned':
     from views.workerview import showAssignedWorkRequests
-    if st.button("🏠 Back to Supervisor Home"):
+    if st.button("🏠 Back to Worker Home"):
         st.session_state['page'] = 'worker'
     showAssignedWorkRequests()
 elif page == 'supervisor':

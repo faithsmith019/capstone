@@ -7,7 +7,7 @@ import os
 os.environ['EMAIL_SENDER'] = 'falconfacilities2026@gmail.com'
 os.environ['EMAIL_PASSWORD'] = 'vefyxrqrpzgmxcrr'
 
-# Import email service
+# Import email service from the Controller package so status-change emails can be sent
 import sys
 sys.path.append(str(Path(__file__).parents[1] / "Controller"))
 from emailService import send_status_notification_email    
@@ -46,6 +46,9 @@ def init_db():
             apartment TEXT,
             location TEXT,
             worker_viewed INTEGER DEFAULT 0,
+            priority TEXT DEFAULT 'normal',
+            hold_reason TEXT,
+            notes TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -67,7 +70,7 @@ def init_db():
     # ensure any previously-created database gets the new columns
     cursor.execute("PRAGMA table_info(maintenance_requests)")
     existing = {row[1] for row in cursor.fetchall()}
-    for col in ('full_name','phone','date','building','apartment','location','requestor_email','created_by','assigned_to','worker_viewed'):
+    for col in ('full_name','phone','date','building','apartment','location','requestor_email','created_by','assigned_to','worker_viewed','priority','hold_reason','notes'):
         if col not in existing:
             cursor.execute(f"ALTER TABLE maintenance_requests ADD COLUMN {col} TEXT")
 
@@ -133,13 +136,20 @@ def add_maintenance_request(
 
 
 def get_request_by_id(request_id: int):
+    """Retrieve a single maintenance request by its ID.
+
+    Inputs:
+        request_id: the ID of the request to fetch.
+    Returns:
+        A dict of request fields or None if not found.
+    """
     db_path = Path(__file__).parent / "maintenance_app.db"
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute("""
         SELECT id, title, description, status, created_by, assigned_to,
                requestor_email, full_name, phone, date, building, apartment, location,
-               created_at, updated_at
+               priority, hold_reason, notes, created_at, updated_at
         FROM maintenance_requests
         WHERE id = ?
     """, (request_id,))
@@ -160,13 +170,24 @@ def get_request_by_id(request_id: int):
             'building': row[10],
             'apartment': row[11],
             'location': row[12],
-            'created_at': row[13],
-            'updated_at': row[14],
+            'priority': row[13],
+            'hold_reason': row[14],
+            'notes': row[15],
+            'created_at': row[16],
+            'updated_at': row[17],
         }
     return None
 
 
 def add_notification(user_id: str, request_id: int, message: str, notification_type: str = "status"):
+    """Create a notification for a user.
+
+    Inputs:
+        user_id: the recipient user identifier.
+        request_id: related maintenance request ID.
+        message: notification text.
+        notification_type: category of notification.
+    """
     db_path = Path(__file__).parent / "maintenance_app.db"
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -179,6 +200,14 @@ def add_notification(user_id: str, request_id: int, message: str, notification_t
 
 
 def get_notifications_for_user(user_id: str, unread_only: bool = True):
+    """Fetch notifications for a user.
+
+    Inputs:
+        user_id: the user whose notifications are fetched.
+        unread_only: whether to return only unread notifications.
+    Returns:
+        List of notification dictionaries.
+    """
     db_path = Path(__file__).parent / "maintenance_app.db"
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -213,6 +242,7 @@ def get_notifications_for_user(user_id: str, unread_only: bool = True):
 
 
 def mark_notifications_read(user_id: str):
+    """Mark all unread notifications for a user as read."""
     db_path = Path(__file__).parent / "maintenance_app.db"
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -226,6 +256,13 @@ def mark_notifications_read(user_id: str):
 
 
 def get_requests(all_status: bool = True):
+    """Load maintenance requests from the database.
+
+    Inputs:
+        all_status: if True, return requests of all statuses; otherwise return only open requests.
+    Returns:
+        List of request dictionaries.
+    """
     db_path = Path(__file__).parent / "maintenance_app.db"
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -233,14 +270,14 @@ def get_requests(all_status: bool = True):
     if all_status:
         cursor.execute("""
             SELECT id, title, description, status, created_by, assigned_to,
-                   requestor_email, full_name, phone, date, building, apartment, location, worker_viewed
+                   requestor_email, full_name, phone, date, building, apartment, location, worker_viewed, priority, hold_reason, notes
             FROM maintenance_requests
             ORDER BY created_at DESC
         """)
     else:
         cursor.execute("""
             SELECT id, title, description, status, created_by, assigned_to,
-                   requestor_email, full_name, phone, date, building, apartment, location, worker_viewed
+                   requestor_email, full_name, phone, date, building, apartment, location, worker_viewed, priority, hold_reason, notes
             FROM maintenance_requests
             WHERE status = 'open'
             ORDER BY created_at DESC
@@ -266,12 +303,55 @@ def get_requests(all_status: bool = True):
             'apartment': row[11],
             'location': row[12],
             'worker_viewed': row[13],
+            'priority': row[14],
+            'hold_reason': row[15],
+            'notes': row[16],
         })
     return requests
 
 
+def update_request_details(request_id: int, status: str = None, priority: str = None, hold_reason: str = None, notes: str = None):
+    """Update fields on an existing maintenance request.
+
+    Inputs:
+        request_id: ID of the request to update.
+        status: new status value, if provided.
+        priority: new priority, if provided.
+        hold_reason: hold reason text, if provided.
+        notes: technician notes, if provided.
+    """
+    db_path = Path(__file__).parent / "maintenance_app.db"
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    # Build the update query dynamically
+    update_fields = []
+    values = []
+    if status is not None:
+        update_fields.append("status = ?")
+        values.append(status)
+    if priority is not None:
+        update_fields.append("priority = ?")
+        values.append(priority)
+    if hold_reason is not None:
+        update_fields.append("hold_reason = ?")
+        values.append(hold_reason)
+    if notes is not None:
+        update_fields.append("notes = ?")
+        values.append(notes)
+    
+    if update_fields:
+        update_fields.append("updated_at = CURRENT_TIMESTAMP")
+        query = f"UPDATE maintenance_requests SET {', '.join(update_fields)} WHERE id = ?"
+        values.append(request_id)
+        cursor.execute(query, values)
+        conn.commit()
+    
+    conn.close()
+
+
 def mark_request_seen(request_id: int):
-    """Mark a request as viewed by a worker and change status from approved to queued."""
+    """Mark a request as seen by a worker and update its queue status."""
     db_path = Path(__file__).parent / "maintenance_app.db"
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -313,7 +393,7 @@ def mark_request_seen(request_id: int):
 
 
 def assign_request_to_worker(request_id: int, worker_id: str):
-    """Assign a request to a worker, change status to in_progress, and send notification."""
+    """Assign a maintenance request to a worker and notify the requestor."""
     db_path = Path(__file__).parent / "maintenance_app.db"
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()

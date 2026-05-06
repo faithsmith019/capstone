@@ -4,6 +4,11 @@ import Data.information as data
 
 
 def show_requestor_notifications():
+    """Display unread notifications for the logged-in requestor.
+
+    Inputs: uses st.session_state['username'] to identify the current user.
+    Output: renders notification messages and marks them read.
+    """
     user_id = st.session_state.get('username')
     if not user_id:
         return
@@ -17,6 +22,7 @@ def show_requestor_notifications():
 
 
 def show_requestor_status():
+    """Render the current requestor's maintenance request status page."""
     user_id = st.session_state.get('username')
     if not user_id:
         st.warning("No requestor logged in.")

@@ -6,6 +6,11 @@ from Data.information import add_maintenance_request
 
 
 def mainteanceForm():
+    """Render the requestor maintenance request submission form.
+
+    Inputs: form fields entered by the current logged-in requestor.
+    Output: creates a maintenance request record when the form is submitted.
+    """
     st.title("Welcome Requestor!")
     with st.form("maintenance_form", clear_on_submit=True, enter_to_submit=False, border=True, width="stretch", height="content"):
             st.write("In emergencies, please contact a Resident Assistant on call number.")
@@ -24,6 +29,7 @@ def mainteanceForm():
             submitted = st.form_submit_button("Submit Request")
             if submitted:
                 st.success("Your maintenance request has been submitted successfully!")
+                # Persist the requestor's maintenance request to the database.
                 add_maintenance_request(
                     title="Maintenance Request",
                     description=st.session_state.get("description", ""),

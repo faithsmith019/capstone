@@ -15,6 +15,7 @@ hashed_passwords = stauth.Hasher.hash_list(passwords)
 
 credentials = {"usernames": {}}
 def infer_role_from_username(uname: str) -> str:
+    """Infer a default role from the username provided when generating credentials."""
     u = uname.lower()
     if 'requestor' in u:
         return 'requestor'

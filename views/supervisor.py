@@ -22,6 +22,10 @@ from Controller.emailService import send_status_notification_email
 
 
 def render_supervisor():
+    """Render the supervisor dashboard home page.
+
+    Outputs: buttons for viewing requests, approved items, and user management.
+    """
     st.title("👔 Supervisor Dashboard")
     st.write("Manage maintenance requests and user roles.")
 
@@ -51,6 +55,7 @@ def render_supervisor():
       
 
 def register_user():
+    """Render a form for the supervisor to create a new app user."""
     st.header('Register a new user')
     with st.form('register_user'):
         new_username = st.text_input('Username')
@@ -81,22 +86,29 @@ def register_user():
                 st.session_state.pop('authenticator', None)
                 st.success(f'User {new_username} created with role {new_role}')
                 st.rerun()
+
+
 def load_credentials():
-        CREDENTIALS_FILE = Path(__file__).parents[1] / 'hashed_pw.pkl'
-        if CREDENTIALS_FILE.exists():
-            with CREDENTIALS_FILE.open('rb') as f:
-                return pickle.load(f)
-        return {'usernames': {}}
+    """Load the credentials pickle file used by the app for authentication."""
+    CREDENTIALS_FILE = Path(__file__).parents[1] / 'hashed_pw.pkl'
+    if CREDENTIALS_FILE.exists():
+        with CREDENTIALS_FILE.open('rb') as f:
+            return pickle.load(f)
+    return {'usernames': {}}
+
 
 def save_credentials(creds):
-        CREDENTIALS_FILE = Path(__file__).parents[1] / 'hashed_pw.pkl'
-        with CREDENTIALS_FILE.open('wb') as f:
-            pickle.dump(creds, f)
+    """Write the provided credentials dictionary back to the pickle file."""
+    CREDENTIALS_FILE = Path(__file__).parents[1] / 'hashed_pw.pkl'
+    with CREDENTIALS_FILE.open('wb') as f:
+        pickle.dump(creds, f)
+
+
 def edit_user_roles():
+    """Render a view for supervisors to change existing user roles."""
     st.subheader("Edit User Roles")
     st.write("This section allows the supervisor to edit the roles of existing users in the system. You can change a user's role" \
     "to 'requestor', 'supervisor', or 'worker'.")
-    #this function 
 
     creds = load_credentials()
     users = list(creds.get('usernames', {}).keys())
@@ -129,6 +141,7 @@ def edit_user_roles():
         st.rerun()
 
 def betterDisplayIncomingRequest():
+    """Render the supervisor incoming requests view with approve/reject controls."""
     st.subheader("📋 Incoming Requests")
     
     # load incoming requests - only open requests
@@ -270,7 +283,7 @@ def betterDisplayIncomingRequest():
             st.markdown(f"{req['building']} {req['apartment']} {req['location']}")
 
 def update_request_status(request_id, new_status):
-    """Update the status of a maintenance request in the database."""
+    """Update the status of a maintenance request and notify the requestor."""
     db_path = Path(__file__).parents[1] / "Data" / "maintenance_app.db"
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -300,6 +313,7 @@ def update_request_status(request_id, new_status):
 
     return True
 def showIncomingRequests():
+    """Render a simple list of incoming open maintenance requests for supervisors."""
     st.subheader("Incoming Requests")
     st.write("This section will display all incoming maintenance requests for the supervisor to review and assign to workers.")
     incoming_requests = get_requests(all_status=False)  # open requests only
@@ -327,6 +341,7 @@ def showIncomingRequests():
 
 
 def showApprovedRequests():
+    """Render a list of approved maintenance requests."""
     st.subheader("Approved Requests")
     approved_requests = [r for r in get_requests(all_status=True) if r['status'] == 'approved']
     if not approved_requests:
@@ -351,6 +366,7 @@ def showApprovedRequests():
             st.write(f"**Location:** {loc}")
         st.write("---")
 def showPastRequests():
+    """Render a list of completed maintenance requests."""
     st.subheader("Past Requests")
     all_requests = get_requests(all_status=True)
     past_requests = [r for r in all_requests if r['status'] == 'completed']
